@@ -1,0 +1,12 @@
+# Keep source files compatible with rustfmt on every platform.
+*.rs text eol=lf
+*.toml text eol=lf
+*.qml text eol=lf
+*.js text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+
+# Keep Windows scripts in their native format.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
