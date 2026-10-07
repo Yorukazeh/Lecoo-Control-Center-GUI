@@ -25,7 +25,7 @@ Lecoo Control Center GUI是基于Lecoo Control Center打造的非官方图形界
 ## 截图
 
 <div>
-<img src="screenshot\screenshot.png" alt="Logo" >
+<img src="screenshot\screenshot.png" alt="screenshot" >
 </div>
 
 ## 支持范围

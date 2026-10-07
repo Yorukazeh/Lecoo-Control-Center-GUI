@@ -24,7 +24,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
 ## Screenshot
 
 <div>
-<img src="screenshot\screenshot.png" alt="Logo" >
+<img src="screenshot\screenshot.png" alt="screenshot" >
 </div>
 
 ## Supported platforms
