@@ -14,11 +14,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, windows-2022]
-        # Two Qt releases on purpose. The LTS is what release artefacts are built
-        # against; the newest is what a rolling-release desktop actually runs. Testing
-        # only the older one meant a regression between the two would show up first on a
-        # developer's machine instead of here.
-        qt: ["6.8.3", "6.11.2"]
+        # Two Qt releases on purpose: the LTS that release artefacts are built against,
+        # and the newest release a current rolling-release desktop is likely to run.
+        #
+        # 6.10.3 rather than 6.11.x because Qt moved the Windows repository to
+        # per-architecture directories in 6.11 (qt6_6112/qt6_6112_msvc2022_64/Updates.xml
+        # instead of qt6_6112/qt6_6112/Updates.xml), and the aqtinstall version pinned by
+        # the action (3.3.*) only reads the flat layout. It happily lists 6.11.2 and then
+        # fails with "Failed to locate XML data for Qt version". Raise aqtversion at the
+        # same time as this list.
+        qt: ["6.8.3", "6.10.3"]
 
     steps:
       - uses: actions/checkout@v4
