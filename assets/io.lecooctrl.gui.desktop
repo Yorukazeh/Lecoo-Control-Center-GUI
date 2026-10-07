@@ -1,0 +1,14 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Lecoo Control Center
+GenericName=Laptop Control Center
+Comment=Control the EC settings of Lecoo laptops (fan, battery charge, keyboard backlight, performance profile)
+Exec=Lecoo-Control-Center-GUI
+Icon=io.lecooctrl.gui
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=lecoo;emdoor;ec;fan;battery;backlight;performance;
+StartupNotify=true
+StartupWMClass=io.lecooctrl.gui

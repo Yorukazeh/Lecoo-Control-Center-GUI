@@ -1,0 +1,51 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / Qt ${{ matrix.qt }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        # Two Qt releases on purpose. The LTS is what release artefacts are built
+        # against; the newest is what a rolling-release desktop actually runs. Testing
+        # only the older one meant a regression between the two would show up first on a
+        # developer's machine instead of here.
+        qt: ["6.8.3", "6.11.2"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ matrix.qt }}
+          modules: "qt5compat qtshadertools"
+          cache: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl1-mesa-dev
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Build (release)
+        run: cargo build --release

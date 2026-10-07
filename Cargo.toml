@@ -1,0 +1,29 @@
+[package]
+name = "Lecoo-Control-Center-GUI"
+version = "0.1.0"
+edition = "2024"
+authors = ["Yorukazeh"]
+description = "Material 3 QML control center for Lecoo/Emdoor laptops (IT5570/IT5571 EC). Talks to the lecoo-ctrl CLI."
+repository = "https://github.com/Yorukazeh/Lecoo-Control-Center-GUI"
+license = "GPL-3.0-only"
+readme = "README.md"
+keywords = ["lecoo", "emdoor", "ec", "qt", "qml", "material3"]
+categories = ["gui", "hardware-support"]
+
+[[bin]]
+name = "Lecoo-Control-Center-GUI"
+path = "src/main.rs"
+
+[dependencies]
+cxx = "1.0"
+cxx-qt = "0.10"
+cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
+
+[build-dependencies]
+cxx-qt-build = "0.10"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+[features]
+link_qt_object_files = ["cxx-qt-build/link_qt_object_files"]

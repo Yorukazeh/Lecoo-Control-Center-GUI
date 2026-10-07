@@ -1,0 +1,12 @@
+# Keep formatted code within the project's preferred width.
+max_width = 110
+
+# Preserve readable widths for calls, structs, arrays, and chains.
+fn_call_width = 100
+struct_lit_width = 70
+array_width = 100
+chain_width = 85
+single_line_if_else_max_width = 100
+
+style_edition = "2024"
+newline_style = "Unix"

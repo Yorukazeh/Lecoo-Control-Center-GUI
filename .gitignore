@@ -1,0 +1,14 @@
+# Rust build output
+/target
+**/*.rs.bk
+
+# Qt tooling
+.qmlls.ini
+
+# Packaging scratch
+/squashfs-root
+*.AppImage
+
+# Local scratch and editor state
+.local/
+.vs/
