@@ -1,6 +1,6 @@
 # Third-party notices
 
-`Lecoo-Control-Center-GUI` (`0.1.0`) is licensed under **GPL-3.0-only**; see [LICENSE](LICENSE).
+`Lecoo-Control-Center-GUI` (`0.1.1`) is licensed under **GPL-3.0-only**; see [LICENSE](LICENSE).
 
 This file records third-party components and runtime dependencies with their applicable licenses. Keep it with source and binary distributions.
 
