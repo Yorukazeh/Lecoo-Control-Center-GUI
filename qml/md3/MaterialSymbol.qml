@@ -7,7 +7,6 @@ StyledText {
 
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
 
-    renderType: Text.NativeRendering
     shouldUseNumberFont: false
 
     font {

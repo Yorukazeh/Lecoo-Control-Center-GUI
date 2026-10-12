@@ -8,7 +8,8 @@ Text {
     property real animationDistanceX: 0
     property real animationDistanceY: 6
 
-    renderType: Text.NativeRendering
+    // Match Qt Quick's default distance-field rendering on Windows for smooth text.
+    renderType: Qt.platform.os === "windows" ? Text.QtRendering : Text.NativeRendering
     verticalAlignment: Text.AlignVCenter
 
     /** Apply an optional Material 3 type-scale token to the text. */
