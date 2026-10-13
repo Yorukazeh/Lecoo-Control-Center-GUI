@@ -12,3 +12,6 @@
 # Local scratch and editor state
 .local/
 .vs/
+
+/docker
+.dockerignore
