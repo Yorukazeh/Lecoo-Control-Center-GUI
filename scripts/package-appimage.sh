@@ -237,6 +237,19 @@ if [ -d "$qt_plugins/wayland-shell-integration" ]; then
     check_present "usr/plugins/wayland-shell-integration/libxdg-shell.so"
 fi
 
+# Qt resolves plugin/QML import paths from the app directory.
+# AppRun is a symlink at AppDir root, so usr/bin/qt.conf is ignored, causing "Could not find Qt wayland platform plugin".
+# Add root-level qt.conf with Prefix relative to AppDir root.
+log "writing $appdir/qt.conf (Qt reads it from the AppDir root, not usr/bin)"
+cat >"$appdir/qt.conf" <<'QTCONF'
+[Paths]
+Prefix = usr
+Plugins = plugins
+Imports = qml
+Qml2Imports = qml
+QTCONF
+check_present "qt.conf"
+
 # Pack the AppImage.
 log "running appimagetool"
 mkdir -p "$(dirname "$output")"
