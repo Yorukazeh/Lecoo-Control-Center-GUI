@@ -74,6 +74,8 @@ pub mod qobject {
         fn lecooFixedFontFamily() -> QString;
         #[rust_name = "cursor_screen_name"]
         fn lecooCursorScreenName() -> QString;
+        #[rust_name = "platform_name"]
+        fn lecooPlatformName() -> QString;
         #[rust_name = "os_product_name"]
         fn lecooOsName() -> QString;
         #[rust_name = "os_kernel_version"]
@@ -159,6 +161,10 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "cursorScreenName"]
         fn cursor_screen_name(&self) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "platformName"]
+        fn platform_name(&self) -> QString;
 
         // Return a compiled-in legal document by name.
         #[qinvokable]
@@ -516,6 +522,11 @@ impl qobject::ControlCenter {
     /// Name of the screen the mouse cursor is on (empty when unknown).
     pub fn cursor_screen_name(&self) -> QString {
         qobject::cursor_screen_name()
+    }
+
+    /// Qt platform plugin name, such as "wayland", "xcb" or "offscreen".
+    pub fn platform_name(&self) -> QString {
+        qobject::platform_name()
     }
 
     pub fn refresh_power_profile(self: Pin<&mut Self>) {

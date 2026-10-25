@@ -34,6 +34,7 @@ ApplicationWindow {
         property int ledBrightnessStored: 128
         property int windowWidthStored: 0
         property int windowHeightStored: 0
+        property bool windowGeometryStored: false
     }
 
     property int currentPage: 0
@@ -220,6 +221,10 @@ ApplicationWindow {
     // Keep the window at or above the layout's minimum size.
     readonly property int windowMinWidth: 800
     readonly property int windowMinHeight: 600
+    readonly property bool windowGeometryPersistable: {
+        var platform = backend.platformName()
+        return platform !== "offscreen" && platform !== "minimal"
+    }
 
     // Restore undersized windows without changing managed states.
     function clampWindowSize() {
@@ -257,6 +262,19 @@ ApplicationWindow {
         appWindow.width = appWindow.rememberedWidth
         appWindow.height = appWindow.rememberedHeight
         settleGuard.restart()
+    }
+
+    // Store geometry only after a real windowed session.
+    function persistWindowGeometry() {
+        if (!appWindow.windowGeometryPersistable
+                || appWindow.visibility !== Window.Windowed
+                || appWindow.width < appWindow.windowMinWidth
+                || appWindow.height < appWindow.windowMinHeight)
+            return
+        settings.windowWidthStored = appWindow.width
+        settings.windowHeightStored = appWindow.height
+        settings.windowGeometryStored = true
+        settings.sync()
     }
 
     // Return the screen under the cursor.
@@ -299,10 +317,19 @@ ApplicationWindow {
         // Set vertical position before horizontal position.
         appWindow.y = Math.round(target.virtualY + (target.height - wantHeight) / 2)
         appWindow.x = Math.round(target.virtualX + (target.width - wantWidth) / 2)
-        if (appWindow.width !== wantWidth)
+        var resized = false
+        if (appWindow.width !== wantWidth) {
+            appWindow.settlingWindow = true
             appWindow.width = wantWidth
-        if (appWindow.height !== wantHeight)
+            resized = true
+        }
+        if (appWindow.height !== wantHeight) {
+            appWindow.settlingWindow = true
             appWindow.height = wantHeight
+            resized = true
+        }
+        if (resized)
+            settleGuard.restart()
 
         // Placement diagnostics are available through Qt's stderr logging.
     }
@@ -341,10 +368,13 @@ ApplicationWindow {
         Appearance.systemFontFamily = backend.systemFontFamily()
         Appearance.systemFixedFontFamily = backend.fixedFontFamily()
         I18n.language = appWindow.effectiveLanguage
-        if (settings.windowWidthStored >= appWindow.windowMinWidth)
-            appWindow.width = settings.windowWidthStored
-        if (settings.windowHeightStored >= appWindow.windowMinHeight)
-            appWindow.height = settings.windowHeightStored
+        appWindow.settlingWindow = true
+        if (appWindow.windowGeometryPersistable && settings.windowGeometryStored) {
+            if (settings.windowWidthStored >= appWindow.windowMinWidth)
+                appWindow.width = settings.windowWidthStored
+            if (settings.windowHeightStored >= appWindow.windowMinHeight)
+                appWindow.height = settings.windowHeightStored
+        }
         Appearance.darkMode = settings.darkModeStored
         Appearance.themeIndex = settings.themeIndexStored
         Appearance.customTheme = settings.customThemeStored
@@ -358,6 +388,7 @@ ApplicationWindow {
         // Place the window after restoring its saved size.
         appWindow.placeWindowOn(appWindow.screenUnderCursor())
         appWindow.visible = true
+        settleGuard.restart()
     }
 
     Connections {
@@ -453,17 +484,12 @@ ApplicationWindow {
         interval: 400
         repeat: false
         onTriggered: {
-            settings.windowWidthStored = appWindow.width
-            settings.windowHeightStored = appWindow.height
-            settings.sync()
+            if (!appWindow.settlingWindow)
+                appWindow.persistWindowGeometry()
         }
     }
 
-    onClosing: {
-        settings.windowWidthStored = appWindow.width
-        settings.windowHeightStored = appWindow.height
-        settings.sync()
-    }
+    onClosing: appWindow.persistWindowGeometry()
     onEffectiveLanguageChanged: I18n.language = effectiveLanguage
     onLanguageSettingChanged: settings.languageStored = languageSetting
 

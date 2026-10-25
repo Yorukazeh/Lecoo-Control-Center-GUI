@@ -55,6 +55,11 @@ QString lecooCursorScreenName()
     return QString();
 }
 
+QString lecooPlatformName()
+{
+    return QGuiApplication::platformName();
+}
+
 QString lecooOsName()
 {
     // e.g. "Windows 11", "CachyOS Linux"

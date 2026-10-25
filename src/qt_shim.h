@@ -20,6 +20,9 @@ QString lecooFixedFontFamily();
 // Return the screen under the cursor.
 QString lecooCursorScreenName();
 
+// Return the active Qt platform plugin name.
+QString lecooPlatformName();
+
 // OS description for the device-info page (QSysInfo is not exposed by cxx-qt-lib).
 QString lecooOsName();
 QString lecooOsVersion();
