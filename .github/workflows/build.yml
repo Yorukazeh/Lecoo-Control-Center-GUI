@@ -47,10 +47,39 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgl1-mesa-dev
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libxcb-cursor0
 
       - name: Check formatting
         run: cargo fmt --check
 
       - name: Build (release)
         run: cargo build --release
+
+      - name: Package (Linux AppImage)
+        if: runner.os == 'Linux'
+        env:
+          QT_VERSION: ${{ matrix.qt }}
+        run: |
+          ./scripts/package-appimage.sh --no-build \
+            --output "target/release/Lecoo-Control-Center-GUI-${QT_VERSION}-x86_64.AppImage"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -QtBin "$env:QT_ROOT_DIR\bin" -NoBuild
+
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lecoo-Control-Center-GUI-linux-x86_64-qt${{ matrix.qt }}
+          path: target/release/Lecoo-Control-Center-GUI-*.AppImage
+          if-no-files-found: error
+
+      - name: Upload Windows artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lecoo-Control-Center-GUI-windows-x64-qt${{ matrix.qt }}
+          path: target/release/
+          if-no-files-found: error
