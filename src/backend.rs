@@ -14,6 +14,9 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+/// Highest fan PWM value accepted by the CLI.
+const FAN_PWM_MAX: i32 = 220;
+
 #[cxx_qt::bridge]
 pub mod qobject {
     unsafe extern "C++" {
@@ -503,7 +506,7 @@ impl qobject::ControlCenter {
         }
 
         self.as_mut().begin();
-        let pwm_text = pwm.clamp(0, 255).to_string();
+        let pwm_text = pwm.clamp(0, FAN_PWM_MAX).to_string();
         let target_arg = target.clone();
         let mode_arg = mode.clone();
         self.run_async(

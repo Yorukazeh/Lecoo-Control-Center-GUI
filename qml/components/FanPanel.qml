@@ -10,6 +10,7 @@ Card {
     property color accent: Appearance.colors.colPrimary
     property string selectedMode: "auto"
     property int pwmValue: 160
+    readonly property int pwmMax: 220
     signal modeSelected(string mode, int pwm)
 
     readonly property var modes: [
@@ -71,7 +72,7 @@ Card {
             Layout.fillWidth: true
             enabled: panel.selectedMode === "custom"
             from: 0
-            to: 255
+            to: panel.pwmMax
             value: panel.pwmValue
             onMoved: panel.pwmValue = Math.round(value)
         }
