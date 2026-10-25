@@ -13,7 +13,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
 ## Features
 
 - Dashboard with connection state, temperatures, fan speeds, power profile, and live monitoring.
-- Silent, balanced, and performance power profiles.
+- Silent, balanced, and performance power profiles, with the system power mode kept in sync (Windows power mode, power-profiles-daemon on Linux).
 - Automatic, full-speed, and custom PWM modes for CPU and GPU fans.
 - Charging limits at 100%, 95%, 80%, 60%, and 40%.
 - Keyboard backlight and LED ring controls.
@@ -44,6 +44,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
 - Rust stable, edition 2024.
 - An installed or otherwise available `lecoo-ctrl` executable.
 - `lecoo-ec-daemon` for hardware control.
+- Linux: `power-profiles-daemon` and one of `busctl`, `gdbus`, `dbus-send`, or `powerprofilesctl` to sync the system power mode (optional; without them the firmware profile is still applied and the GUI reports that the system mode was not changed).
 
 ## Build (For Developers)
 

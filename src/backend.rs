@@ -450,15 +450,46 @@ impl qobject::ControlCenter {
         self.as_mut().begin();
         let profile_arg = profile.clone();
         self.run_async(
-            move || run_cli(&["power", &profile_arg]),
-            move |mut obj, result| match result {
+            move || {
+                let firmware = run_cli(&["power", &profile_arg]);
+                // Never move the system power mode when the firmware rejected
+                if firmware.is_err() {
+                    return (firmware, Ok(()));
+                }
+                let overlay = match crate::power::Overlay::for_profile(&profile_arg) {
+                    Some(wanted) => match crate::power::effective_overlay() {
+                        Ok(Some(current)) if current == wanted => Ok(()),
+                        _ => crate::power::set_overlay(wanted),
+                    },
+                    None => Ok(()),
+                };
+                (firmware, overlay)
+            },
+            move |mut obj, (firmware, overlay)| match firmware {
+                Err(error) => obj.fail(error),
                 Ok(_) => {
                     obj.as_mut().set_power_profile(qstring(profile));
-                    obj.finish("backend.status.power_applied");
+                    obj.apply_overlay_result(overlay, "backend.status.power_applied");
                 }
-                Err(error) => obj.fail(error),
             },
         );
+    }
+
+    /// Record the outcome of a system power-mode write.
+    fn apply_overlay_result(
+        mut self: Pin<&mut Self>,
+        overlay: Result<(), crate::power::OverlayError>,
+        success_key: &str,
+    ) {
+        match overlay {
+            Ok(()) => self.finish(success_key),
+            Err(error) => {
+                self.as_mut().set_busy(false);
+                self.as_mut().set_error_message(qstring(error.to_string()));
+                self.as_mut().set_status_message(qstring(error.message_key()));
+                self.as_mut().set_last_update(qstring(now_label()));
+            }
+        }
     }
 
     pub fn apply_fan_mode(mut self: Pin<&mut Self>, target: &QString, mode: &QString, pwm: i32) {

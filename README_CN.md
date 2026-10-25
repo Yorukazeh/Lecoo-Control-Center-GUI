@@ -13,7 +13,7 @@ Lecoo Control Center GUI是基于Lecoo Control Center打造的非官方图形界
 ## 功能
 
 - **仪表盘**：显示连接状态、CPU/系统温度、CPU/GPU 风扇转速、当前性能模式和实时监控状态。
-- **性能模式**：支持静音、平衡和性能模式。
+- **性能模式**：支持静音、平衡和性能模式，并同步系统电源方案（Windows 电源模式 / Linux power-profiles-daemon）。
 - **风扇控制**：CPU 和 GPU 风扇均支持自动、全速和自定义 PWM。
 - **充电策略**：支持 100%、95%、80%、60% 和 40% 充电上限。
 - **键盘背光**：支持关闭、低、中、高和自定义 PWM 亮度。
@@ -45,6 +45,7 @@ Lecoo Control Center GUI是基于Lecoo Control Center打造的非官方图形界
 - Rust stable，edition 2024。
 - 已安装或可定位的 `lecoo-ctrl`。
 - 运行硬件控制功能时，需要后端项目提供的 `lecoo-ec-daemon`。
+- Linux：`power-profiles-daemon`，以及 `busctl`、`gdbus`、`dbus-send`、`powerprofilesctl` 之一，用于同步系统电源方案（可选；缺少时仍会应用硬件配置，并提示系统电源方案未切换）。
 
 ## 构建（面向开发者）
 
