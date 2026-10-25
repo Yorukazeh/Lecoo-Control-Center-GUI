@@ -1,7 +1,9 @@
 use std::{
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
     pin::Pin,
-    process::{Command, Output},
+    process::{Child, ChildStderr, Command, Output, Stdio},
+    sync::{Arc, Mutex},
 };
 
 use cxx_qt::Threading;
@@ -16,6 +18,39 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Highest fan PWM value accepted by the CLI.
 const FAN_PWM_MAX: i32 = 220;
+
+/// A long-running CLI monitor process and the handle needed to stop it.
+struct MonitorProcess {
+    child: Mutex<Option<Child>>,
+}
+
+impl MonitorProcess {
+    fn new(child: Child) -> Self {
+        Self { child: Mutex::new(Some(child)) }
+    }
+
+    fn stop(&self) {
+        let mut child = self.child.lock().unwrap_or_else(|error| error.into_inner());
+        if let Some(mut child) = child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+#[derive(Default)]
+struct MonitorState {
+    generation: u64,
+    process: Option<Arc<MonitorProcess>>,
+}
+
+impl MonitorState {
+    fn stop(&mut self) {
+        if let Some(process) = self.process.take() {
+            process.stop();
+        }
+    }
+}
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -153,6 +188,7 @@ pub struct ControlCenterRust {
     app_version: QString,
     cli_path: QString,
     cli_version: QString,
+    monitor: Arc<Mutex<MonitorState>>,
 }
 
 impl Default for ControlCenterRust {
@@ -175,7 +211,16 @@ impl Default for ControlCenterRust {
             app_version: QString::from(env!("CARGO_PKG_VERSION")),
             cli_path: QString::default(),
             cli_version: QString::default(),
+            monitor: Arc::new(Mutex::new(MonitorState::default())),
         }
+    }
+}
+
+impl Drop for ControlCenterRust {
+    fn drop(&mut self) {
+        let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
+        state.generation = state.generation.wrapping_add(1);
+        state.stop();
     }
 }
 
@@ -225,6 +270,58 @@ fn run_cli(args: &[&str]) -> Result<String, String> {
     Err("backend.error.cli_unavailable".to_owned())
 }
 
+/// Start a CLI process with piped output for long-running monitoring.
+fn spawn_cli(args: &[&str]) -> io::Result<Child> {
+    let mut last_error = None;
+    for candidate in cli_candidates() {
+        let mut command = Command::new(&candidate);
+        command.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(windows)]
+        command.creation_flags(CREATE_NO_WINDOW);
+
+        match command.spawn() {
+            Ok(child) => return Ok(child),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| io::Error::new(io::ErrorKind::NotFound, "lecoo-ctrl was not found")))
+}
+
+/// Read one CR- or LF-terminated monitor update.
+fn read_monitor_line(reader: &mut impl BufRead, line: &mut Vec<u8>) -> io::Result<usize> {
+    line.clear();
+    loop {
+        let buffer = reader.fill_buf()?;
+        if buffer.is_empty() {
+            return Ok(line.len());
+        }
+
+        if let Some(index) = buffer.iter().position(|byte| matches!(byte, b'\r' | b'\n')) {
+            let skip = usize::from(buffer[index] == b'\r' && buffer.get(index + 1) == Some(&b'\n'));
+            let consumed = index + 1 + skip;
+            if index == 0 && line.is_empty() {
+                reader.consume(consumed);
+                continue;
+            }
+            line.extend_from_slice(&buffer[..index]);
+            reader.consume(consumed);
+            return Ok(line.len());
+        }
+
+        line.extend_from_slice(buffer);
+        let consumed = buffer.len();
+        reader.consume(consumed);
+    }
+}
+
+/// Collect the stderr text of a monitor process, which exits with it.
+fn read_stderr(mut stderr: ChildStderr) -> String {
+    let mut text = String::new();
+    let _ = stderr.read_to_string(&mut text);
+    text.trim().to_owned()
+}
+
 /// Return the absolute CLI path for the About card.
 fn resolve_cli_path() -> Option<PathBuf> {
     if let Ok(raw) = std::env::var("LECOO_CTRL") {
@@ -261,6 +358,12 @@ fn numbers(text: &str) -> Vec<i32> {
     text.split(|ch: char| !ch.is_ascii_digit())
         .filter_map(|part| part.parse::<i32>().ok())
         .collect()
+}
+
+/// Parse one monitoring update: CPU temp, system temp, CPU fan, GPU fan.
+fn monitoring_values(line: &str) -> Option<(i32, i32, i32, i32)> {
+    let values = numbers(line);
+    if values.len() >= 4 { Some((values[0], values[1], values[2], values[3])) } else { None }
 }
 
 /// Return the local time as HH:MM:SS.
@@ -435,13 +538,113 @@ impl qobject::ControlCenter {
         );
     }
 
+    /// Whether a queued monitor update still belongs to the current process.
+    fn monitor_is_current(&self, generation: u64) -> bool {
+        self.monitor.lock().map(|state| state.generation == generation).unwrap_or(false)
+    }
+
     pub fn toggle_monitoring(mut self: Pin<&mut Self>, enabled: bool) {
-        self.as_mut().set_monitoring(enabled);
-        self.as_mut().set_status_message(qstring(if enabled {
-            "backend.status.monitor_started"
-        } else {
-            "backend.status.monitor_paused"
-        }));
+        if !enabled {
+            {
+                let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
+                state.stop();
+                state.generation = state.generation.wrapping_add(1);
+            }
+            self.as_mut().set_monitoring(false);
+            self.as_mut().set_status_message(qstring("backend.status.monitor_paused"));
+            return;
+        }
+
+        let started = {
+            let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
+            state.stop();
+            state.generation = state.generation.wrapping_add(1);
+            let generation = state.generation;
+
+            match spawn_cli(&["monitoring", "--rate", "1"]) {
+                Ok(mut child) => match child.stdout.take() {
+                    Some(stdout) => {
+                        let stderr = child.stderr.take();
+                        let process = Arc::new(MonitorProcess::new(child));
+                        state.process = Some(Arc::clone(&process));
+                        Ok((generation, process, stdout, stderr))
+                    }
+                    None => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        Err(io::Error::other("lecoo-ctrl monitoring has no output stream"))
+                    }
+                },
+                Err(error) => Err(error),
+            }
+        };
+
+        let (generation, process, stdout, stderr) = match started {
+            Ok(started) => started,
+            Err(error) => {
+                self.as_mut().set_monitoring(false);
+                if error.kind() == io::ErrorKind::NotFound {
+                    self.as_mut().fail("backend.error.cli_unavailable");
+                } else {
+                    self.as_mut().fail(error.to_string());
+                }
+                return;
+            }
+        };
+
+        let qt_thread = self.qt_thread();
+        self.as_mut().set_error_message(QString::default());
+        self.as_mut().set_monitoring(true);
+        self.as_mut().set_status_message(qstring("backend.status.monitor_started"));
+
+        std::thread::spawn(move || {
+            let stderr = stderr.map(|stderr| std::thread::spawn(move || read_stderr(stderr)));
+            let mut reader = BufReader::new(stdout);
+            let mut line = Vec::new();
+
+            loop {
+                match read_monitor_line(&mut reader, &mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let text = String::from_utf8_lossy(&line);
+                        if let Some((cpu, system, cpu_fan, gpu_fan)) = monitoring_values(&text) {
+                            let _ = qt_thread.queue(move |mut obj| {
+                                if !obj.monitor_is_current(generation) {
+                                    return;
+                                }
+                                obj.as_mut().set_cpu_temperature(cpu);
+                                obj.as_mut().set_system_temperature(system);
+                                obj.as_mut().set_cpu_fan_rpm(cpu_fan);
+                                obj.as_mut().set_gpu_fan_rpm(gpu_fan);
+                                obj.as_mut().set_connected(true);
+                                obj.as_mut().set_last_update(qstring(now_label()));
+                            });
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            {
+                let mut child = process.child.lock().unwrap_or_else(|error| error.into_inner());
+                if let Some(mut child) = child.take() {
+                    let _ = child.wait();
+                }
+            }
+
+            let detail = stderr.and_then(|handle| handle.join().ok()).unwrap_or_default();
+            let message = if detail.is_empty() { "backend.error.monitor_stopped".to_owned() } else { detail };
+            let _ = qt_thread.queue(move |mut obj| {
+                if !obj.monitor_is_current(generation) {
+                    return;
+                }
+                obj.as_mut().set_monitoring(false);
+                obj.as_mut().set_connected(false);
+                obj.as_mut().set_error_message(qstring(message));
+                obj.as_mut().set_status_message(qstring("backend.error.monitor_stopped"));
+                obj.as_mut().set_last_update(qstring(now_label()));
+            });
+        });
     }
 
     pub fn apply_power_profile(mut self: Pin<&mut Self>, profile: &QString) {
@@ -616,6 +819,29 @@ impl qobject::ControlCenter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn monitor_updates_split_on_carriage_returns_and_newlines() {
+        let mut reader = BufReader::new(b"banner\n\rCPU: 50\r\n\rlast".as_slice());
+        let mut line = Vec::new();
+
+        assert_eq!(read_monitor_line(&mut reader, &mut line).unwrap(), 6);
+        assert_eq!(line, b"banner");
+        assert_eq!(read_monitor_line(&mut reader, &mut line).unwrap(), 7);
+        assert_eq!(line, b"CPU: 50");
+        assert_eq!(read_monitor_line(&mut reader, &mut line).unwrap(), 4);
+        assert_eq!(line, b"last");
+        assert_eq!(read_monitor_line(&mut reader, &mut line).unwrap(), 0);
+    }
+
+    #[test]
+    fn monitoring_values_ignore_the_banner_and_parse_updates() {
+        assert_eq!(monitoring_values("Monitoring enabled. Update rate: 1000 ms"), None);
+        assert_eq!(
+            monitoring_values("🌡️ CPU: 50°C, Sys: 37°C | 💨 Fans: 2867 RPM (CPU), 2994 RPM (GPU)"),
+            Some((50, 37, 2867, 2994))
+        );
+    }
 
     #[test]
     fn version_banner_keeps_only_the_version() {

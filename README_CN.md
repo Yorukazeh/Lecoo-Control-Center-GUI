@@ -85,7 +85,7 @@ $env:LECOO_CTRL = "C:\path\to\lecoo-ctrl.exe"
 
 如果不设置 `LECOO_CTRL`，将 `lecoo-ctrl` 安装到系统 `PATH` 即可。
 
-实时监控由 GUI 内部定时器执行，按固定间隔调用 CLI 查询温度和风扇数据，不运行无限循环的监控子进程。
+实时监控会启动一个 `lecoo-ctrl monitoring` 进程并读取其输出。
 
 ## Windows 打包
 

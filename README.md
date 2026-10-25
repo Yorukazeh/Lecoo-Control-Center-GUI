@@ -72,7 +72,7 @@ $env:LECOO_CTRL = "C:\path\to\lecoo-ctrl.exe"
 .\target\release\Lecoo-Control-Center-GUI.exe
 ```
 
-Live monitoring periodically invokes the CLI for temperature and fan data; it does not run an unbounded monitoring subprocess.
+Live monitoring starts one `lecoo-ctrl monitoring` process and reads its output.
 
 ## Windows packaging
 

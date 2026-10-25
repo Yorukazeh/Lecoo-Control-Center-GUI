@@ -197,14 +197,6 @@ ApplicationWindow {
         onTriggered: appWindow.noticeKey = ""
     }
 
-    Timer {
-        id: monitorTimer
-        interval: 1000
-        repeat: true
-        running: backend.monitoring
-        onTriggered: backend.refreshAll()
-    }
-
     function showNotice(key) {
         appWindow.noticeKey = key
         noticeTimer.restart()
@@ -885,7 +877,11 @@ ApplicationWindow {
                             StyledSwitch {
                                 text: backend.monitoring ? I18n.t("dashboard.monitorEnabled") : I18n.t("dashboard.monitorDisabled")
                                 checked: backend.monitoring
-                                onToggled: backend.toggleMonitoring(checked)
+                                onToggled: {
+                                    // Ignore binding updates; only user changes should start or stop the process.
+                                    if (checked !== backend.monitoring)
+                                        backend.toggleMonitoring(checked)
+                                }
                             }
                         }
                     }

@@ -156,5 +156,6 @@ var strings = {
         "backend.error.unsupported_fan_mode": "不支持的风扇设置",
         "backend.error.unsupported_charge_mode": "不支持的充电模式",
         "backend.error.unsupported_keyboard_mode": "不支持的键盘背光模式",
-        "backend.error.unsupported_led_mode": "不支持的 LED 模式"
+        "backend.error.unsupported_led_mode": "不支持的 LED 模式",
+        "backend.error.monitor_stopped": "实时监控进程意外停止"
 };

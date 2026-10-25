@@ -156,5 +156,6 @@ var strings = {
         "backend.error.unsupported_fan_mode": "Unsupported fan setting",
         "backend.error.unsupported_charge_mode": "Unsupported charging mode",
         "backend.error.unsupported_keyboard_mode": "Unsupported keyboard backlight mode",
-        "backend.error.unsupported_led_mode": "Unsupported LED mode"
+        "backend.error.unsupported_led_mode": "Unsupported LED mode",
+        "backend.error.monitor_stopped": "Live monitoring stopped unexpectedly"
 };
