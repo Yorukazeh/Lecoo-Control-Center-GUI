@@ -10,7 +10,7 @@ import io.lecooctrl.gui 1.0
 // LECOO Control Center.
 ApplicationWindow {
     id: appWindow
-    visible: true
+    visible: false
     width: 1280
     height: 800
     title: "Lecoo Control Center"
@@ -365,6 +365,7 @@ ApplicationWindow {
         backend.refreshPowerProfile()
         // Place the window after restoring its saved size.
         appWindow.placeWindowOn(appWindow.screenUnderCursor())
+        appWindow.visible = true
     }
 
     Connections {
