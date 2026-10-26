@@ -20,7 +20,7 @@ QtObject {
     // Generate the built-in themes.
     readonly property var themes: [
         { "name": "Mauve",  "icon": "blur_on",               "hue": 305.5, "chroma": 5.4,  "variant": "neutral" },
-        { "name": "Purple", "icon": "palette",               "hue": 299.0, "chroma": 47.9, "variant": "expressive" },
+        { "name": "Purple", "icon": "palette",               "hue": 299.0, "chroma": 47.9, "variant": "tonalSpot" },
         { "name": "Blue",   "icon": "water_drop",            "hue": 264.3, "chroma": 38.6, "variant": "tonalSpot" },
         { "name": "Green",  "icon": "eco",                   "hue": 145.4, "chroma": 35.6, "variant": "tonalSpot" },
         { "name": "Peach",  "icon": "local_fire_department", "hue": 29.7,  "chroma": 40.5, "variant": "expressive" },

@@ -18,7 +18,7 @@ RowLayout {
     Layout.fillWidth: true
     // Allow the selector to shrink inside its host card.
     Layout.minimumWidth: 0
-    spacing: 10
+    spacing: 4
 
     Repeater {
         model: root.profiles

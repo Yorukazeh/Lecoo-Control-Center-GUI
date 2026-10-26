@@ -19,18 +19,32 @@ RippleButton {
     leftRadius: (toggled || leftmost) ? (height / 2) : Appearance.rounding.unsharpenmore
     rightRadius: (toggled || rightmost) ? (height / 2) : Appearance.rounding.unsharpenmore
 
-    // Use onPrimary for selected segments.
-    readonly property color _on: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
+    Behavior on leftRadius {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+    Behavior on rightRadius {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
 
-    colBackground: ColorUtils.transparentize(Appearance.colors.colOnSurfaceVariant, 1)
-    colBackgroundHover: ColorUtils.mix(root.colBackground, root._on, 0.92)
-    colBackgroundActive: ColorUtils.mix(root.colBackground, root._on, 0.85)
+    // Use onPrimary for selected segments and onSurface for unselected ones.
+    readonly property color _on: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurface
+    readonly property real _idleAlpha: Appearance.darkMode ? 0.15 : 0.12
+
+    colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, root._idleAlpha)
+    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, root._idleAlpha + 0.06)
+    colBackgroundActive: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, root._idleAlpha + 0.12)
     colBackgroundToggled: Appearance.colors.colPrimary
     colBackgroundToggledHover: Appearance.colors.colPrimaryHover
     colBackgroundToggledActive: Appearance.colors.colPrimaryActive
-    colRipple: root.toggled ? Appearance.colors.colPrimaryActive : ColorUtils.mix(root.colBackground, root._on, 0.8)
-    border: !root.toggled
-    colBorder: Appearance.colors.colOutline
+    colRipple: root.toggled ? Appearance.colors.colPrimaryActive : ColorUtils.applyAlpha(root._on, 0.12)
 
     contentItem: Item {
         implicitWidth: segmentContent.implicitWidth
