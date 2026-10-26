@@ -4,6 +4,7 @@ use std::{
     pin::Pin,
     process::{Child, ChildStderr, Command, Output, Stdio},
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use cxx_qt::Threading;
@@ -49,6 +50,47 @@ impl MonitorState {
         if let Some(process) = self.process.take() {
             process.stop();
         }
+    }
+}
+
+/// Six temperature breakpoints from 40 °C to 90 °C.
+const FAN_CURVE_TEMPS: [i32; 6] = [40, 50, 60, 70, 80, 90];
+
+struct FanCurve {
+    enabled: bool,
+    points: [i32; 6],
+    last_pwm: i32,
+    last_applied: Option<Instant>,
+}
+
+impl Default for FanCurve {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            points: [60, 80, 100, 130, 170, 220],
+            last_pwm: -1,
+            last_applied: None,
+        }
+    }
+}
+
+impl FanCurve {
+    fn pwm_for(&self, temperature: i32) -> i32 {
+        let temperature = temperature.clamp(FAN_CURVE_TEMPS[0], FAN_CURVE_TEMPS[5]);
+        if temperature == FAN_CURVE_TEMPS[5] {
+            return self.points[5];
+        }
+
+        let offset = temperature - FAN_CURVE_TEMPS[0];
+        let index = (offset / 10) as usize;
+        let fraction = (offset % 10) as f32 / 10.0;
+        let lower = self.points[index] as f32;
+        let upper = self.points[index + 1] as f32;
+        (lower + (upper - lower) * fraction).round() as i32
+    }
+
+    fn reset(&mut self) {
+        self.last_pwm = -1;
     }
 }
 
@@ -129,6 +171,14 @@ pub mod qobject {
         fn apply_fan_mode(self: Pin<&mut Self>, target: &QString, mode: &QString, pwm: i32);
 
         #[qinvokable]
+        #[cxx_name = "setFanCurve"]
+        fn set_fan_curve(self: Pin<&mut Self>, target: &QString, enabled: bool, points: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "setFanCurveInterval"]
+        fn set_fan_curve_interval(self: Pin<&mut Self>, millis: i32);
+
+        #[qinvokable]
         #[cxx_name = "applyChargePreset"]
         fn apply_charge_preset(self: Pin<&mut Self>, preset: &QString);
 
@@ -195,6 +245,8 @@ pub struct ControlCenterRust {
     cli_path: QString,
     cli_version: QString,
     monitor: Arc<Mutex<MonitorState>>,
+    fan_curves: Arc<Mutex<[FanCurve; 2]>>,
+    fan_curve_interval: Arc<Mutex<u64>>,
 }
 
 impl Default for ControlCenterRust {
@@ -218,6 +270,8 @@ impl Default for ControlCenterRust {
             cli_path: QString::default(),
             cli_version: QString::default(),
             monitor: Arc::new(Mutex::new(MonitorState::default())),
+            fan_curves: Arc::new(Mutex::new([FanCurve::default(), FanCurve::default()])),
+            fan_curve_interval: Arc::new(Mutex::new(2000)),
         }
     }
 }
@@ -227,6 +281,10 @@ impl Drop for ControlCenterRust {
         let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
         state.generation = state.generation.wrapping_add(1);
         state.stop();
+        drop(state);
+        // Do not leave the firmware in the last curve PWM after closing.
+        let _ = run_cli(&["fan", "cpu", "auto"]);
+        let _ = run_cli(&["fan", "gpu", "auto"]);
     }
 }
 
@@ -364,6 +422,21 @@ fn numbers(text: &str) -> Vec<i32> {
     text.split(|ch: char| !ch.is_ascii_digit())
         .filter_map(|part| part.parse::<i32>().ok())
         .collect()
+}
+
+fn parse_curve_points(text: &str) -> Option<[i32; 6]> {
+    let values: Vec<i32> = text.split(',').filter_map(|part| part.trim().parse::<i32>().ok()).collect();
+    if values.len() != 6 {
+        return None;
+    }
+    let mut points = [0; 6];
+    for (index, value) in values.into_iter().enumerate() {
+        points[index] = value.clamp(0, FAN_PWM_MAX);
+    }
+    for index in 1..points.len() {
+        points[index] = points[index].max(points[index - 1]);
+    }
+    Some(points)
 }
 
 /// Parse one monitoring update: CPU temp, system temp, CPU fan, GPU fan.
@@ -554,8 +627,95 @@ impl qobject::ControlCenter {
         self.monitor.lock().map(|state| state.generation == generation).unwrap_or(false)
     }
 
+    /// Apply enabled temperature curves after a monitor update.
+    fn apply_fan_curves(&self) {
+        let sensors = [self.cpu_temperature; 2];
+        let targets = ["cpu", "gpu"];
+        let interval =
+            Duration::from_millis(*self.fan_curve_interval.lock().unwrap_or_else(|error| error.into_inner()));
+        let mut commands = Vec::new();
+        let mut curves = self.fan_curves.lock().unwrap_or_else(|error| error.into_inner());
+
+        for (index, sensor) in sensors.into_iter().enumerate() {
+            if sensor <= 0 {
+                continue;
+            }
+            let curve = &mut curves[index];
+            if !curve.enabled {
+                continue;
+            }
+            let pwm = curve.pwm_for(sensor);
+            if pwm == curve.last_pwm {
+                continue;
+            }
+            let now = Instant::now();
+            if let Some(last) = curve.last_applied
+                && now.duration_since(last) < interval
+            {
+                continue;
+            }
+            curve.last_applied = Some(now);
+            curve.last_pwm = pwm;
+            commands.push((targets[index], pwm));
+        }
+        drop(curves);
+
+        for (target, pwm) in commands {
+            let args = ["fan".to_owned(), target.to_owned(), "custom".to_owned(), pwm.to_string()];
+            std::thread::spawn(move || {
+                let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                let _ = run_cli(&refs);
+            });
+        }
+    }
+
+    pub fn set_fan_curve(mut self: Pin<&mut Self>, target: &QString, enabled: bool, points: &QString) {
+        let index = match target.to_string().as_str() {
+            "cpu" => 0,
+            "gpu" => 1,
+            _ => return,
+        };
+        let Some(points) = parse_curve_points(&points.to_string()) else {
+            return;
+        };
+
+        {
+            let mut curves = self.fan_curves.lock().unwrap_or_else(|error| error.into_inner());
+            let curve = &mut curves[index];
+            curve.enabled = enabled;
+            curve.points = points;
+            curve.reset();
+        }
+
+        if enabled && !self.monitoring {
+            self.as_mut().toggle_monitoring(true);
+        }
+    }
+
+    pub fn set_fan_curve_interval(mut self: Pin<&mut Self>, millis: i32) {
+        let millis = millis.clamp(500, 10_000) as u64;
+        let changed = {
+            let mut interval = self.fan_curve_interval.lock().unwrap_or_else(|error| error.into_inner());
+            let changed = *interval != millis;
+            *interval = millis;
+            changed
+        };
+        // Restart the monitor so sub-second intervals sample fast enough.
+        if changed && self.monitoring {
+            self.as_mut().toggle_monitoring(true);
+        }
+    }
+
     pub fn toggle_monitoring(mut self: Pin<&mut Self>, enabled: bool) {
         if !enabled {
+            let curve_enabled = {
+                let curves = self.fan_curves.lock().unwrap_or_else(|error| error.into_inner());
+                curves.iter().any(|curve| curve.enabled)
+            };
+            if curve_enabled {
+                self.as_mut().set_status_message(qstring("backend.status.curve_monitoring_required"));
+                return;
+            }
             {
                 let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
                 state.stop();
@@ -566,13 +726,17 @@ impl qobject::ControlCenter {
             return;
         }
 
+        // Sample at least as fast as the curve can apply PWM.
+        let millis = *self.fan_curve_interval.lock().unwrap_or_else(|error| error.into_inner());
+        let rate = if millis < 1000 { format!("{:.1}", millis as f64 / 1000.0) } else { "1".to_owned() };
+
         let started = {
             let mut state = self.monitor.lock().unwrap_or_else(|error| error.into_inner());
             state.stop();
             state.generation = state.generation.wrapping_add(1);
             let generation = state.generation;
 
-            match spawn_cli(&["monitoring", "--rate", "1"]) {
+            match spawn_cli(&["monitoring", "--rate", &rate]) {
                 Ok(mut child) => match child.stdout.take() {
                     Some(stdout) => {
                         let stderr = child.stderr.take();
@@ -629,6 +793,7 @@ impl qobject::ControlCenter {
                                 obj.as_mut().set_gpu_fan_rpm(gpu_fan);
                                 obj.as_mut().set_connected(true);
                                 obj.as_mut().set_last_update(qstring(now_label()));
+                                obj.apply_fan_curves();
                             });
                         }
                     }
@@ -869,6 +1034,23 @@ mod tests {
         if let Some(path) = resolve_cli_path() {
             assert!(path.is_file(), "resolved CLI path must exist: {}", path.display());
         }
+    }
+
+    #[test]
+    fn fan_curve_interpolates_and_clamps() {
+        let curve = FanCurve::default();
+        assert_eq!(curve.pwm_for(30), 60);
+        assert_eq!(curve.pwm_for(40), 60);
+        assert_eq!(curve.pwm_for(45), 70);
+        assert_eq!(curve.pwm_for(90), 220);
+        assert_eq!(curve.pwm_for(100), 220);
+    }
+
+    #[test]
+    fn fan_curve_points_are_parsed_and_clamped() {
+        assert_eq!(parse_curve_points("0, 55, 110, 165, 220, 999"), Some([0, 55, 110, 165, 220, 220]));
+        assert_eq!(parse_curve_points("220, 0, 160, 10, 200, 0"), Some([220, 220, 220, 220, 220, 220]));
+        assert_eq!(parse_curve_points("1, 2"), None);
     }
 
     #[test]

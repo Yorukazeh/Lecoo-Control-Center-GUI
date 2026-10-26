@@ -3,6 +3,7 @@
 var strings = {
         "nav.dashboard": "Dashboard",
         "nav.controls": "Device Controls",
+        "nav.fans": "Fan Control",
         "nav.info": "Device Info",
         "nav.palette": "Interface Settings",
 
@@ -32,6 +33,7 @@ var strings = {
         "dashboard.monitorOff": "Monitoring paused",
         "dashboard.monitorEnabled": "On",
         "dashboard.monitorDisabled": "Off",
+        "dashboard.curveMonitoring": "Fan curves are active; live monitoring stays on",
 
         "metric.cpuTemp": "CPU Temperature",
         "metric.sysTemp": "System Temperature",
@@ -39,9 +41,12 @@ var strings = {
         "metric.gpuFan": "GPU Fan",
 
         "controls.title": "Hardware Controls",
-        "controls.subtitle": "Adjust power, fans, charging, keyboard backlight and the LED ring directly.",
+        "controls.subtitle": "Adjust power, charging, keyboard backlight and the LED ring directly.",
         "controls.perfTitle": "Power mode",
         "action.apply": "Apply",
+
+        "fans.title": "Fan Control",
+        "fans.subtitle": "Configure CPU and GPU fan modes, with a temperature curve for automatic control.",
 
         "profile.silent": "Silent",
         "profile.default": "Balanced",
@@ -53,6 +58,25 @@ var strings = {
         "fan.auto": "Auto",
         "fan.full": "Full speed",
         "fan.custom": "Custom",
+        "fan.curve.titleCpu": "CPU Fan Curve",
+        "fan.curve.titleGpu": "GPU Fan Curve",
+        "fan.curve.subtitleCpu": "Custom CPU curve tuning",
+        "fan.curve.subtitleGpu": "Custom GPU curve tuning",
+        "fan.curve.enable": "Enable curve control",
+        "fan.curve.customRequired": "Select Custom first",
+        "fan.curve.monitoringRequired": "Curve control needs live monitoring and keeps it enabled while active",
+        "fan.curve.warning": "This feature is high-risk; incorrect configuration may cause overheating and irreversible hardware damage. Use at your own risk; the author is not responsible for any damage to your device.",
+        "fan.curve.syncToGpu": "Copy CPU curve to GPU",
+        "fan.curve.sectionTitle": "Fan Curve Control",
+        "fan.curve.sectionSubtitle": "Set separate temperature curves for the CPU and GPU",
+        "fan.curve.intervalTitle": "PWM update interval",
+        "fan.curve.intervalSubtitle": "Shared by CPU and GPU curves; 0.5–10 seconds",
+        "fan.curve.intervalValue": "{0} s",
+        "fan.curve.settingsTitle": "Curve settings",
+        "fan.curve.settingsSubtitle": "Startup behavior and PWM update interval",
+        "fan.curve.autoApply": "Automatically apply custom curve settings on startup",
+        "fan.curve.autoApplyHint": "Automatically select Custom mode and enable curve control on startup; the program will still revert to Auto mode on exit.",
+        "fan.curve.reset": "Restore default curves",
 
         "charge.title": "Charging Policy",
         "charge.subtitle": "Limit the charge level to extend battery life",
@@ -137,6 +161,7 @@ var strings = {
         "backend.status.info_updated": "Device information updated",
         "backend.status.monitor_started": "Live monitoring enabled",
         "backend.status.monitor_paused": "Live monitoring paused",
+        "backend.status.curve_monitoring_required": "Live monitoring cannot be stopped while a fan curve is active",
         "backend.status.power_applied": "Power profile applied",
         "backend.status.fan_cpu_applied": "CPU fan mode updated",
         "backend.status.fan_gpu_applied": "GPU fan mode updated",

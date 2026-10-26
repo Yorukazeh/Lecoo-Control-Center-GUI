@@ -3,6 +3,7 @@
 var strings = {
         "nav.dashboard": "仪表盘",
         "nav.controls": "设备控制",
+        "nav.fans": "风扇控制",
         "nav.info": "设备信息",
         "nav.palette": "界面设置",
 
@@ -32,6 +33,7 @@ var strings = {
         "dashboard.monitorOff": "监控已暂停",
         "dashboard.monitorEnabled": "已开启",
         "dashboard.monitorDisabled": "已关闭",
+        "dashboard.curveMonitoring": "风扇曲线运行中，实时监控保持开启",
 
         "metric.cpuTemp": "CPU 温度",
         "metric.sysTemp": "系统温度",
@@ -39,9 +41,12 @@ var strings = {
         "metric.gpuFan": "GPU 风扇",
 
         "controls.title": "硬件控制",
-        "controls.subtitle": "直接调整电源、风扇、充电、键盘背光与 LED灯环。",
+        "controls.subtitle": "直接调整电源、充电、键盘背光与 LED灯环。",
         "controls.perfTitle": "性能模式",
         "action.apply": "应用",
+
+        "fans.title": "风扇控制",
+        "fans.subtitle": "分别设置 CPU 与 GPU 风扇模式，并使用温度曲线自动调速。",
 
         "profile.silent": "静音",
         "profile.default": "平衡",
@@ -53,6 +58,25 @@ var strings = {
         "fan.auto": "自动",
         "fan.full": "全速",
         "fan.custom": "自定义",
+        "fan.curve.titleCpu": "CPU 风扇调速曲线",
+        "fan.curve.titleGpu": "GPU 风扇调速曲线",
+        "fan.curve.subtitleCpu": "自定义 CPU 曲线调速",
+        "fan.curve.subtitleGpu": "自定义 GPU 曲线调速",
+        "fan.curve.enable": "启用曲线控制",
+        "fan.curve.customRequired": "请先选择“自定义”模式",
+        "fan.curve.monitoringRequired": "曲线控制需要实时监控，启用后将自动保持监控开启",
+        "fan.curve.warning": "该功能存在高危风险，不正确的配置可能导致过热和不可逆转的硬件损坏，风险自负，对设备造成的任何损坏作者不承担责任。",
+        "fan.curve.syncToGpu": "将 CPU 曲线同步到 GPU",
+        "fan.curve.sectionTitle": "风扇曲线控制",
+        "fan.curve.sectionSubtitle": "分别设置 CPU 与 GPU 的温度曲线",
+        "fan.curve.intervalTitle": "PWM 下发间隔",
+        "fan.curve.intervalSubtitle": "CPU/GPU 曲线共用，范围 0.5～10 秒",
+        "fan.curve.intervalValue": "{0} 秒",
+        "fan.curve.settingsTitle": "曲线设置",
+        "fan.curve.settingsSubtitle": "启动行为与 PWM 下发间隔",
+        "fan.curve.autoApply": "程序启动时自动应用自定义曲线设置",
+        "fan.curve.autoApplyHint": "启动后自动选择自定义模式并开启曲线控制；程序退出时仍会恢复自动模式。",
+        "fan.curve.reset": "恢复默认曲线设置",
 
         "charge.title": "充电策略",
         "charge.subtitle": "限制充电上限以延长电池寿命",
@@ -137,6 +161,7 @@ var strings = {
         "backend.status.info_updated": "设备信息已更新",
         "backend.status.monitor_started": "实时监控已开启",
         "backend.status.monitor_paused": "实时监控已暂停",
+        "backend.status.curve_monitoring_required": "风扇曲线运行中，不能关闭实时监控",
         "backend.status.power_applied": "电源配置已应用",
         "backend.status.fan_cpu_applied": "CPU 风扇模式已更新",
         "backend.status.fan_gpu_applied": "GPU 风扇模式已更新",

@@ -43,6 +43,7 @@ const MD3_COMPONENTS: &[&str] = &[
 const APP_COMPONENTS: &[&str] = &[
     "MetricCard.qml",
     "FanPanel.qml",
+    "FanCurveEditor.qml",
     "StatusCard.qml",
     "PageScroll.qml",
     "ProfileSelector.qml",

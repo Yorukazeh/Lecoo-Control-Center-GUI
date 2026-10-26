@@ -9,8 +9,10 @@ Card {
     property string target: "cpu"
     property color accent: Appearance.colors.colPrimary
     property string selectedMode: "auto"
+    property bool curveActive: false
     property int pwmValue: 160
     readonly property int pwmMax: 220
+    readonly property bool manualEnabled: panel.selectedMode === "custom" && !panel.curveActive
     signal modeSelected(string mode, int pwm)
 
     readonly property var modes: [
@@ -30,7 +32,7 @@ Card {
 
     Row {
         Layout.fillWidth: true
-        spacing: 8
+        spacing: 4
 
         Repeater {
             model: panel.modes
@@ -59,8 +61,8 @@ Card {
         Layout.fillWidth: true
         Layout.topMargin: 2
         spacing: 12
-        enabled: panel.selectedMode === "custom"
-        opacity: panel.selectedMode === "custom" ? 1 : 0.5
+        enabled: panel.manualEnabled
+        opacity: panel.manualEnabled ? 1 : 0.5
 
         StyledText {
             text: "PWM"
@@ -70,7 +72,7 @@ Card {
 
         StyledSlider {
             Layout.fillWidth: true
-            enabled: panel.selectedMode === "custom"
+            enabled: panel.manualEnabled
             from: 0
             to: panel.pwmMax
             value: panel.pwmValue
@@ -95,7 +97,7 @@ Card {
             variant: MaterialButton.Variant.Filled
             buttonText: I18n.t("action.apply")
             buttonIcon: "check"
-            enabled: panel.selectedMode === "custom"
+            enabled: panel.manualEnabled
             // Preserve the accent when disabled; opacity provides the fade.
             buttonColor: down ? Appearance.colors.colPrimaryActive : hovered ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
             onClicked: panel.modeSelected("custom", panel.pwmValue)

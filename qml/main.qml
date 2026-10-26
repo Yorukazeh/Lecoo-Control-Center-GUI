@@ -32,6 +32,10 @@ ApplicationWindow {
         property string kbdModeStored: "medium"
         property int kbdPwmStored: 160
         property int ledBrightnessStored: 128
+        property real curveIntervalStored: 2
+        property bool autoApplyCurvesStored: false
+        property string cpuCurveStored: "60,80,100,130,170,220"
+        property string gpuCurveStored: "60,80,100,130,170,220"
         property int windowWidthStored: 0
         property int windowHeightStored: 0
         property bool windowGeometryStored: false
@@ -67,6 +71,7 @@ ApplicationWindow {
     readonly property bool railCanExpand: width - expandedSpace >= pageMinViewport
     readonly property bool railExpanded: railPreference < 0 ? false : railCanExpand
     readonly property real pageAvailableWidth: Math.max(0, width - (railExpanded ? expandedSpace : collapsedSpace) - 48)
+    readonly property bool fanCurveActive: cpuCurve.active || gpuCurve.active
 
     property bool followSystemTheme: settings.followSystemStored
     property string selectedProfile: settings.profileStored
@@ -74,6 +79,9 @@ ApplicationWindow {
     property string kbdMode: settings.kbdModeStored
     property int kbdPwm: settings.kbdPwmStored
     property int ledBrightness: settings.ledBrightnessStored
+    property real curveInterval: Math.max(0.5, Math.min(10, settings.curveIntervalStored))
+    property bool autoApplyCurves: settings.autoApplyCurvesStored
+    readonly property var defaultFanCurve: [60, 80, 100, 130, 170, 220]
     property string noticeKey: ""
     readonly property string noticeText: noticeKey.length > 0 ? I18n.t(noticeKey) : ""
     property string languageSetting: settings.languageStored
@@ -83,6 +91,33 @@ ApplicationWindow {
 
     function toggleRail() {
         railPreference = railExpanded ? -1 : 1
+    }
+
+    function storedFanCurve(text) {
+        var values = String(text).split(",")
+        if (values.length !== 6)
+            return appWindow.defaultFanCurve.slice()
+        var curve = []
+        for (var i = 0; i < 6; ++i) {
+            var raw = String(values[i]).trim()
+            if (raw.length === 0)
+                return appWindow.defaultFanCurve.slice()
+            var value = Math.round(Number(raw))
+            if (isNaN(value))
+                return appWindow.defaultFanCurve.slice()
+            curve.push(Math.max(0, Math.min(220, value)))
+        }
+        for (var j = 1; j < 6; ++j)
+            curve[j] = Math.max(curve[j], curve[j - 1])
+        return curve
+    }
+
+    function resetFanCurves() {
+        cpuCurve.points = appWindow.defaultFanCurve.slice()
+        gpuCurve.points = appWindow.defaultFanCurve.slice()
+        settings.cpuCurveStored = cpuCurve.points.join(",")
+        settings.gpuCurveStored = gpuCurve.points.join(",")
+        settings.sync()
     }
 
     // Finish the reveal and release its temporary frame.
@@ -382,6 +417,15 @@ ApplicationWindow {
         Appearance.customChroma = settings.customChromaStored
         Appearance.schemeVariant = settings.schemeVariantStored
         appWindow.applySystemTheme()
+        backend.setFanCurveInterval(Math.round(appWindow.curveInterval * 1000))
+        cpuCurve.points = appWindow.storedFanCurve(settings.cpuCurveStored)
+        gpuCurve.points = appWindow.storedFanCurve(settings.gpuCurveStored)
+        if (appWindow.autoApplyCurves) {
+            cpuFanPanel.selectedMode = "custom"
+            gpuFanPanel.selectedMode = "custom"
+            cpuCurve.curveEnabled = true
+            gpuCurve.curveEnabled = true
+        }
         backend.refreshAll()
         backend.refreshInfo()
         backend.refreshPowerProfile()
@@ -424,6 +468,15 @@ ApplicationWindow {
     onKbdModeChanged: settings.kbdModeStored = kbdMode
     onKbdPwmChanged: settings.kbdPwmStored = kbdPwm
     onLedBrightnessChanged: settings.ledBrightnessStored = ledBrightness
+    onCurveIntervalChanged: {
+        settings.curveIntervalStored = curveInterval
+        settings.sync()
+        backend.setFanCurveInterval(Math.round(curveInterval * 1000))
+    }
+    onAutoApplyCurvesChanged: {
+        settings.autoApplyCurvesStored = autoApplyCurves
+        settings.sync()
+    }
 
     // Recheck placement when the assigned screen changes.
     onScreenChanged: {
@@ -489,7 +542,12 @@ ApplicationWindow {
         }
     }
 
-    onClosing: appWindow.persistWindowGeometry()
+    onClosing: {
+        settings.cpuCurveStored = cpuCurve.points.join(",")
+        settings.gpuCurveStored = gpuCurve.points.join(",")
+        settings.sync()
+        appWindow.persistWindowGeometry()
+    }
     onEffectiveLanguageChanged: I18n.language = effectiveLanguage
     onLanguageSettingChanged: settings.languageStored = languageSetting
 
@@ -642,17 +700,24 @@ ApplicationWindow {
                 }
                 NavigationRailButton {
                     expanded: appWindow.railExpanded
-                    buttonIcon: "info"
-                    buttonText: I18n.t("nav.info")
+                    buttonIcon: "cyclone"
+                    buttonText: I18n.t("nav.fans")
                     toggled: appWindow.currentPage === 2
                     onPressed: appWindow.currentPage = 2
                 }
                 NavigationRailButton {
                     expanded: appWindow.railExpanded
-                    buttonIcon: "palette"
-                    buttonText: I18n.t("nav.palette")
+                    buttonIcon: "info"
+                    buttonText: I18n.t("nav.info")
                     toggled: appWindow.currentPage === 3
                     onPressed: appWindow.currentPage = 3
+                }
+                NavigationRailButton {
+                    expanded: appWindow.railExpanded
+                    buttonIcon: "palette"
+                    buttonText: I18n.t("nav.palette")
+                    toggled: appWindow.currentPage === 4
+                    onPressed: appWindow.currentPage = 4
                 }
 
                 Item { Layout.fillHeight: true }
@@ -903,11 +968,23 @@ ApplicationWindow {
                             StyledSwitch {
                                 text: backend.monitoring ? I18n.t("dashboard.monitorEnabled") : I18n.t("dashboard.monitorDisabled")
                                 checked: backend.monitoring
+                                // Curves need continuous monitoring; allow a restart if the process stopped.
+                                enabled: !appWindow.fanCurveActive || !backend.monitoring
                                 onToggled: {
                                     // Ignore binding updates; only user changes should start or stop the process.
                                     if (checked !== backend.monitoring)
                                         backend.toggleMonitoring(checked)
                                 }
+                            }
+                            StyledText {
+                                Layout.fillWidth: true
+                                visible: appWindow.fanCurveActive
+                                text: backend.monitoring
+                                    ? I18n.t("dashboard.curveMonitoring")
+                                    : I18n.t("fan.curve.monitoringRequired")
+                                color: Appearance.colors.colPrimary
+                                font.pixelSize: 11
+                                wrapMode: Text.WordWrap
                             }
                         }
                     }
@@ -954,22 +1031,6 @@ ApplicationWindow {
                     columns: appWindow.pageAvailableWidth < 940 ? 1 : 2
                     columnSpacing: 14
                     rowSpacing: 14
-
-                    FanPanel {
-                        target: "cpu"
-                        accent: Appearance.colors.colPrimary
-                        onModeSelected: function (mode, pwm) {
-                            backend.applyFanMode(target, mode, pwm)
-                        }
-                    }
-
-                    FanPanel {
-                        target: "gpu"
-                        accent: Appearance.colors.colSecondary
-                        onModeSelected: function (mode, pwm) {
-                            backend.applyFanMode(target, mode, pwm)
-                        }
-                    }
 
                     Card {
                         Layout.fillWidth: true
@@ -1172,6 +1233,193 @@ ApplicationWindow {
                             onClicked: backend.applyLedMode("custom", appWindow.ledBrightness)
                         }
                         Item { Layout.fillWidth: true }
+                    }
+                }
+            }
+
+            PageScroll {
+                id: fansPage
+                active: StackLayout.isCurrentItem
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    StyledText {
+                        text: I18n.t("fans.title")
+                        color: Appearance.colors.colOnSurface
+                        font.pixelSize: 28
+                        font.weight: Font.Medium
+                    }
+                    StyledText {
+                        text: I18n.t("fans.subtitle")
+                        color: Appearance.colors.colOnSurfaceVariant
+                        font.pixelSize: 13
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: appWindow.pageAvailableWidth < 980 ? 1 : 2
+                    columnSpacing: 14
+                    rowSpacing: 14
+
+                    FanPanel {
+                        id: cpuFanPanel
+                        Layout.fillHeight: false
+                        target: "cpu"
+                        accent: Appearance.colors.colPrimary
+                        curveActive: cpuCurve.active
+                        onModeSelected: function (mode, pwm) {
+                            if (mode !== "custom")
+                                cpuCurve.curveEnabled = false
+                            backend.applyFanMode(target, mode, pwm)
+                        }
+                    }
+
+                    FanPanel {
+                        id: gpuFanPanel
+                        Layout.fillHeight: false
+                        target: "gpu"
+                        accent: Appearance.colors.colSecondary
+                        curveActive: gpuCurve.active
+                        onModeSelected: function (mode, pwm) {
+                            if (mode !== "custom")
+                                gpuCurve.curveEnabled = false
+                            backend.applyFanMode(target, mode, pwm)
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    StyledText {
+                        text: I18n.t("fan.curve.sectionTitle")
+                        color: Appearance.colors.colOnSurface
+                        font.pixelSize: 20
+                        font.weight: Font.Medium
+                    }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: I18n.t("fan.curve.sectionSubtitle")
+                        color: Appearance.colors.colOnSurfaceVariant
+                        font.pixelSize: 12
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: appWindow.pageAvailableWidth < 980 ? 1 : 3
+                    columnSpacing: 8
+                    rowSpacing: 14
+
+                    FanCurveEditor {
+                        id: cpuCurve
+                        Layout.fillWidth: true
+                        target: "cpu"
+                        accent: Appearance.colors.colPrimary
+                        fanMode: cpuFanPanel.selectedMode
+                    }
+
+                    IconButton {
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+                        Layout.preferredWidth: 48
+                        Layout.preferredHeight: 48
+                        buttonIcon: "arrow_forward"
+                        variant: IconButton.Variant.Tonal
+                        onClicked: cpuCurve.copyTo(gpuCurve)
+
+                        StyledToolTip {
+                            text: I18n.t("fan.curve.syncToGpu")
+                        }
+                    }
+
+                    FanCurveEditor {
+                        id: gpuCurve
+                        Layout.fillWidth: true
+                        target: "gpu"
+                        accent: Appearance.colors.colSecondary
+                        fanMode: gpuFanPanel.selectedMode
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignTop
+                        text: "warning"
+                        iconSize: 16
+                        color: Appearance.colors.colError
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: I18n.t("fan.curve.warning")
+                        color: Appearance.colors.colError
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                Card {
+                    Layout.fillWidth: true
+                    title: I18n.t("fan.curve.settingsTitle")
+                    subtitle: I18n.t("fan.curve.settingsSubtitle")
+                    leadingIcon: "tune"
+
+                    SettingsRow {
+                        icon: "autorenew"
+                        title: I18n.t("fan.curve.autoApply")
+                        subtitle: I18n.t("fan.curve.autoApplyHint")
+
+                        StyledSwitch {
+                            checked: appWindow.autoApplyCurves
+                            onToggled: appWindow.autoApplyCurves = checked
+                        }
+                    }
+
+                    Divider {
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 4
+                    }
+
+                    SettingsRow {
+                        icon: "schedule"
+                        title: I18n.t("fan.curve.intervalTitle")
+                        subtitle: I18n.t("fan.curve.intervalSubtitle")
+
+                        StyledText {
+                            Layout.preferredWidth: 52
+                            horizontalAlignment: Text.AlignRight
+                            text: I18n.t("fan.curve.intervalValue", appWindow.curveInterval.toFixed(1))
+                            color: Appearance.colors.colPrimary
+                            font.pixelSize: 13
+                        }
+                    }
+
+                    StyledSlider {
+                        id: curveIntervalSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 10
+                        stepSize: 0.5
+                        value: appWindow.curveInterval
+                        onMoved: appWindow.curveInterval = Math.round(value * 2) / 2
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Item { Layout.fillWidth: true }
+
+                        MaterialButton {
+                            variant: MaterialButton.Variant.Tonal
+                            buttonText: I18n.t("fan.curve.reset")
+                            buttonIcon: "restart_alt"
+                            onClicked: appWindow.resetFanCurves()
+                        }
                     }
                 }
             }

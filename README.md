@@ -14,7 +14,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
 
 - Dashboard with connection state, temperatures, fan speeds, power profile, and live monitoring.
 - Silent, balanced, and performance power profiles, with the system power mode kept in sync (Windows power mode, power-profiles-daemon on Linux).
-- Automatic, full-speed, and custom PWM modes for CPU and GPU fans.
+- Dedicated fan page with automatic, full-speed, and custom PWM modes for CPU and GPU fans, plus a temperature curve editor that requires live monitoring while the app is running; saved curves can be reapplied at startup and fans return to automatic on exit.
 - Charging limits at 100%, 95%, 80%, 60%, and 40%.
 - Keyboard backlight and LED ring controls.
 - Device, controller, GUI version, and operating system information.
