@@ -34,6 +34,7 @@ ApplicationWindow {
         property int ledBrightnessStored: 128
         property real curveIntervalStored: 2
         property bool autoApplyCurvesStored: false
+        property bool closeToTrayStored: false
         property string cpuCurveStored: "60,80,100,130,170,220"
         property string gpuCurveStored: "60,80,100,130,170,220"
         property int windowWidthStored: 0
@@ -42,6 +43,51 @@ ApplicationWindow {
     }
 
     property int currentPage: 0
+    property bool trayReady: false
+    property bool exiting: false
+    property bool closeToTray: settings.closeToTrayStored
+    property bool trayAvailable: false
+    property int restoreVisibility: Window.Windowed
+    // Marks the show-from-tray transition.
+    property bool restoringFromTray: false
+
+    function updateTrayMenu() {
+        if (!appWindow.trayReady)
+            return
+        backend.traySetMenu([I18n.t("tray.show"), I18n.t("profile.silent"),
+                            I18n.t("profile.default"), I18n.t("profile.perf"),
+                            I18n.t("tray.quit")],
+                           ["silent", "default", "perf"].indexOf(backend.powerProfile),
+                           backend.connected && !backend.busy)
+    }
+
+    function saveWindowState() {
+        settings.cpuCurveStored = cpuCurve.points.join(",")
+        settings.gpuCurveStored = gpuCurve.points.join(",")
+        appWindow.persistWindowGeometry()
+        settings.sync()
+    }
+
+    function showFromTray() {
+        appWindow.restoringFromTray = true
+        if (appWindow.restoreVisibility === Window.Maximized)
+            appWindow.showMaximized()
+        else if (appWindow.restoreVisibility === Window.FullScreen)
+            appWindow.showFullScreen()
+        else if (appWindow.visibility === Window.Minimized)
+            appWindow.showNormal()
+        else
+            appWindow.show()
+        appWindow.ensureWindowOnScreen()
+        appWindow.raise()
+        appWindow.requestActivate()
+        restoreGuard.restart()
+    }
+
+    onCloseToTrayChanged: {
+        settings.closeToTrayStored = closeToTray
+        settings.sync()
+    }
     property bool themeTransitionRunning: false
     property bool themeRippleActive: false
     property bool pendingThemeDarkMode: true
@@ -403,6 +449,10 @@ ApplicationWindow {
         Appearance.systemFontFamily = backend.systemFontFamily()
         Appearance.systemFixedFontFamily = backend.fixedFontFamily()
         I18n.language = appWindow.effectiveLanguage
+        backend.trayInit()
+        appWindow.trayReady = true
+        appWindow.trayAvailable = backend.trayAvailable()
+        appWindow.updateTrayMenu()
         appWindow.settlingWindow = true
         if (appWindow.windowGeometryPersistable && settings.windowGeometryStored) {
             if (settings.windowWidthStored >= appWindow.windowMinWidth)
@@ -511,9 +561,21 @@ ApplicationWindow {
     }
 
     onVisibilityChanged: {
+        // Remember what the user left behind before the window went to the tray.
+        if (!appWindow.restoringFromTray
+                && (appWindow.visibility === Window.Windowed
+                    || appWindow.visibility === Window.Maximized
+                    || appWindow.visibility === Window.FullScreen))
+            appWindow.restoreVisibility = appWindow.visibility
         // Restore visibility after a screen disappears.
-        if (appWindow.visibility === Window.Windowed)
+        if (!appWindow.restoringFromTray && appWindow.visibility === Window.Windowed)
             appWindow.ensureWindowOnScreen()
+    }
+
+    Timer {
+        id: restoreGuard
+        interval: 300
+        onTriggered: appWindow.restoringFromTray = false
     }
 
     // Persist the window size after resizing and closing.
@@ -542,11 +604,44 @@ ApplicationWindow {
         }
     }
 
-    onClosing: {
-        settings.cpuCurveStored = cpuCurve.points.join(",")
-        settings.gpuCurveStored = gpuCurve.points.join(",")
-        settings.sync()
-        appWindow.persistWindowGeometry()
+    onClosing: function(close) {
+        appWindow.saveWindowState()
+        // Recheck at close time: never hide an unrecoverable window without a tray host.
+        if (!appWindow.exiting && appWindow.closeToTray && backend.trayAvailable()) {
+            close.accepted = false
+            appWindow.hide()
+        }
+    }
+    Timer {
+        interval: 2000
+        running: appWindow.trayReady
+        repeat: true
+        onTriggered: {
+            appWindow.trayAvailable = backend.trayAvailable()
+            if (!appWindow.trayAvailable && !appWindow.visible && !appWindow.exiting)
+                appWindow.showFromTray()
+        }
+    }
+    Connections {
+        target: I18n
+        function onLanguageChanged() { appWindow.updateTrayMenu() }
+    }
+    Connections {
+        target: backend
+        function onBusyChanged() { appWindow.updateTrayMenu() }
+        function onConnectedChanged() { appWindow.updateTrayMenu() }
+        function onTrayAction(action) {
+            if (action === 0) {
+                appWindow.showFromTray()
+            } else if (action >= 1 && action <= 3) {
+                if (backend.connected && !backend.busy)
+                    backend.applyPowerProfile(["silent", "default", "perf"][action - 1])
+            } else if (action === 4) {
+                appWindow.exiting = true
+                appWindow.saveWindowState()
+                Qt.quit()
+            }
+        }
     }
     onEffectiveLanguageChanged: I18n.language = effectiveLanguage
     onLanguageSettingChanged: settings.languageStored = languageSetting
@@ -571,6 +666,7 @@ ApplicationWindow {
         function onPowerProfileChanged() {
             if (["silent", "default", "perf"].indexOf(backend.powerProfile) !== -1)
                 appWindow.selectedProfile = backend.powerProfile
+            appWindow.updateTrayMenu()
         }
     }
 
@@ -1632,6 +1728,16 @@ ApplicationWindow {
                     title: I18n.t("palette.appearanceTitle")
                     leadingIcon: "palette"
                     subtitle: I18n.t("palette.appearanceSubtitle")
+
+                    SettingsRow {
+                        icon: "minimize"
+                        title: I18n.t("tray.closeToTray")
+                        subtitle: I18n.t(appWindow.trayAvailable ? "tray.closeToTrayHint" : "tray.unavailable")
+                        StyledSwitch {
+                            checked: appWindow.closeToTray
+                            onToggled: appWindow.closeToTray = checked
+                        }
+                    }
 
                     SettingsRow {
                         icon: "dark_mode"

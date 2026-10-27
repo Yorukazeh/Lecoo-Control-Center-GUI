@@ -21,6 +21,7 @@ Lecoo Control Center GUI是基于Lecoo Control Center打造的非官方图形界
 - **设备信息**：显示控制器信息、连接状态、GUI 版本、最后更新时间和操作系统信息。
 - **界面设置**：支持浅色/深色模式、跟随系统、中英文切换、预设主题色和自定义 Material You 调色板。
 - **持久化设置**：通过 `QSettings` 保存窗口尺寸、主题、语言及硬件控制选项。
+- **系统托盘**：菜单依次为“显示”、三档性能模式、“退出”。界面设置中可开启“关闭窗口时最小化到托盘”（默认关闭），隐藏窗口后监控及风扇曲线继续运行；系统托盘不可用时，关闭窗口正常退出。
 
 ## 截图
 
@@ -40,6 +41,7 @@ Lecoo Control Center GUI是基于Lecoo Control Center打造的非官方图形界
   - Qt QML
   - Qt Quick Controls 2
   - Qt GUI
+  - Qt Widgets（原生托盘菜单）
   - Qt 5 Compatibility Module
   - Qt Shader Tools
 - Rust stable，edition 2024。

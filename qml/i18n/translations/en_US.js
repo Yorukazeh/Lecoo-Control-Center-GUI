@@ -1,6 +1,11 @@
 .pragma library
 
 var strings = {
+        "tray.show": "Show",
+        "tray.quit": "Quit",
+        "tray.closeToTray": "Minimize to tray when closing",
+        "tray.closeToTrayHint": "Keep running in the background; show the window or quit from the tray",
+        "tray.unavailable": "System tray unavailable; closing the window will quit",
         "nav.dashboard": "Dashboard",
         "nav.controls": "Device Controls",
         "nav.fans": "Fan Control",

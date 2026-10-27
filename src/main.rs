@@ -5,7 +5,7 @@ mod backend;
 mod power;
 
 use cxx_qt::casting::Upcast;
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
+use cxx_qt_lib::{QQmlApplicationEngine, QQmlEngine, QString, QUrl};
 
 fn main() {
     cxx_qt::init_qml_module!("io.lecooctrl.gui");
@@ -19,7 +19,12 @@ fn main() {
         }
     }
 
-    let mut app = QGuiApplication::new();
+    // QMenu/QSystemTrayIcon require QApplication, also for a Qt Quick UI.
+    let mut args = cxx_qt_lib::QStringList::default();
+    for arg in std::env::args() {
+        args.append(QString::from(arg));
+    }
+    let mut app = backend::qobject::new_application(&args);
 
     // Application identity; the desktop file name drives the Wayland app_id.
     if let Some(mut app_ref) = app.as_mut() {

@@ -74,7 +74,7 @@ try {
         $exe
     if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
 
-    foreach ($required in @("Qt6Core.dll", "Qt6Gui.dll", "Qt6Qml.dll", "Qt6Quick.dll")) {
+    foreach ($required in @("Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Qml.dll", "Qt6Quick.dll")) {
         if (-not (Test-Path (Join-Path $releaseDir $required))) {
             throw "windeployqt did not deploy $required next to the executable."
         }

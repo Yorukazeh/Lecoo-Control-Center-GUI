@@ -98,7 +98,9 @@ fn main() {
         .files(["src/backend.rs"])
         .cpp_file("src/qt_shim.cpp")
         .qt_module("Quick")
-        .qt_module("QuickControls2");
+        .qt_module("QuickControls2")
+        // QSystemTrayIcon and QMenu belong to QtWidgets on Linux and Windows.
+        .qt_module("Widgets");
 
     // Compile the C++ shim as UTF-8 on MSVC.
     let builder = unsafe {

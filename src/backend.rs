@@ -8,6 +8,7 @@ use std::{
 };
 
 use cxx_qt::Threading;
+use cxx_qt::casting::Upcast;
 use cxx_qt_lib::{QString, QTime};
 
 #[cfg(windows)]
@@ -99,6 +100,10 @@ pub mod qobject {
     unsafe extern "C++" {
         include!("cxx-qt-lib/qstring.h");
         type QString = cxx_qt_lib::QString;
+        include!("cxx-qt-lib/qstringlist.h");
+        type QStringList = cxx_qt_lib::QStringList;
+        include!("cxx-qt-lib/qguiapplication.h");
+        type QGuiApplication = cxx_qt_lib::QGuiApplication;
     }
 
     // Expose Qt application identity helpers to QML.
@@ -122,6 +127,14 @@ pub mod qobject {
         fn lecooOsName() -> QString;
         #[rust_name = "os_kernel_version"]
         fn lecooOsVersion() -> QString;
+        #[rust_name = "new_application"]
+        fn lecooNewApplication(args: &QStringList) -> UniquePtr<QGuiApplication>;
+        #[rust_name = "tray_available"]
+        fn lecooTrayAvailable() -> bool;
+        #[rust_name = "tray_init"]
+        fn lecooInitTray(controller: Pin<&mut QObject>);
+        #[rust_name = "tray_set_menu"]
+        fn lecooTraySetMenu(items: &QStringList, checked_index: i32, enabled: bool);
     }
 
     extern "RustQt" {
@@ -220,6 +233,24 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "legalDocument"]
         fn legal_document(&self, name: &QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "trayAvailable"]
+        fn tray_available(&self) -> bool;
+
+        #[qinvokable]
+        #[cxx_name = "trayInit"]
+        fn init_tray(self: Pin<&mut Self>);
+
+        #[qinvokable]
+        #[cxx_name = "traySetMenu"]
+        fn tray_set_menu(self: Pin<&mut Self>, items: &QStringList, profile_index: i32, enabled: bool);
+        #[qsignal]
+        #[cxx_name = "trayAction"]
+        fn tray_action(self: Pin<&mut Self>, action: i32);
+        #[qinvokable]
+        #[cxx_name = "handleTrayAction"]
+        fn handle_tray_action(self: Pin<&mut Self>, action: i32);
     }
 
     // Enables `self.qt_thread()` so CLI work can run off the Qt event loop.
@@ -597,9 +628,30 @@ impl qobject::ControlCenter {
         qobject::cursor_screen_name()
     }
 
-    /// Qt platform plugin name, such as "wayland", "xcb" or "offscreen".
+    pub fn init_tray(self: Pin<&mut Self>) {
+        qobject::tray_init(self.upcast_pin());
+    }
+
+    pub fn handle_tray_action(self: Pin<&mut Self>, action: i32) {
+        self.tray_action(action);
+    }
+
+    pub fn tray_set_menu(
+        self: Pin<&mut Self>,
+        items: &cxx_qt_lib::QStringList,
+        profile_index: i32,
+        enabled: bool,
+    ) {
+        qobject::tray_set_menu(items, profile_index, enabled);
+    }
+
+    // Qt platform plugin name, such as "wayland", "xcb" or "offscreen".
     pub fn platform_name(&self) -> QString {
         qobject::platform_name()
+    }
+
+    pub fn tray_available(&self) -> bool {
+        qobject::tray_available()
     }
 
     pub fn refresh_power_profile(self: Pin<&mut Self>) {

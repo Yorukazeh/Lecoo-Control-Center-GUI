@@ -20,6 +20,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
 - Device, controller, GUI version, and operating system information.
 - Light/dark mode, system theme following, Chinese/English localization, preset themes, and a custom Material You palette.
 - Persistent settings through `QSettings`.
+- Native system tray with Show, three power profiles, and Quit. The optional close-to-tray setting keeps monitoring and fan curves running in the background; without a tray host, closing exits normally. The setting is off by default.
 
 ## Screenshot
 
@@ -39,6 +40,7 @@ The GUI is an independent client. Hardware access is provided by the external [`
   - Qt QML
   - Qt Quick Controls 2
   - Qt GUI
+  - Qt Widgets (native tray menu)
   - Qt 5 Compatibility Module
   - Qt Shader Tools
 - Rust stable, edition 2024.

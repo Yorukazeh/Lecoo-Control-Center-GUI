@@ -1,6 +1,11 @@
 .pragma library
 
 var strings = {
+        "tray.show": "显示",
+        "tray.quit": "退出",
+        "tray.closeToTray": "关闭窗口时最小化到托盘",
+        "tray.closeToTrayHint": "关闭后继续在后台运行，可从托盘显示窗口或退出",
+        "tray.unavailable": "当前系统托盘不可用，关闭窗口将直接退出",
         "nav.dashboard": "仪表盘",
         "nav.controls": "设备控制",
         "nav.fans": "风扇控制",
